@@ -4,13 +4,16 @@ import unidecode
 import secrets
 import os
 import subprocess
+import datetime
+
 from flask import render_template, redirect, url_for, flash, request
 from werkzeug.urls import url_parse
 from flask_login import login_user, logout_user, current_user, \
     login_required, fresh_login_required
+
 from app import db, login
 from app.auth import bp
-from app.auth.forms import LoginForm, RegistrationForm
+from app.auth.forms import LoginForm, RegistrationForm, RegistrationFileForm
 from app.models import User
 
 
@@ -152,4 +155,49 @@ def register():
               'primary')
         return redirect(url_for('main.dashboard'))
     return render_template('auth/register.html.j2', title='Register',
+                           form=form)
+
+
+@bp.route('/register_list', methods=['GET', 'POST'])
+@fresh_login_required
+def register_list():
+    if not (current_user.is_admin):
+        flash("You don't have the rights to access this page.", 'danger')
+        return redirect(url_for('main.dashboard'))
+
+    form = RegistrationFileForm()
+
+    if form.validate_on_submit():
+        if form.filetype.data == 'txt':
+            data = form.file.data.readlines()
+            users_list = []
+
+            for user in data:
+                user_data = user.decode()[:-1].split(',')
+                username = user_data[0][0].lower() + \
+                    unidecode.unidecode(user_data[1].
+                                        replace(' ', '').
+                                        replace("'", '').
+                                        lower()).partition('-')[0][:7]
+                user_object = User.query.filter_by(username=username).first()
+                if user_object is not None:
+                    flash('User ' + username + ' already exists.', 'danger')
+                else:
+                    user_object = User(first_name=user_data[0],
+                                       last_name=user_data[1],
+                                       birthdate=datetime.date(int(user_data[2]), 1, 1),
+                                       grad_class=user_data[4],
+                                       username=username,
+                                       email=user_data[3].lower(),
+                                       is_observer=0,
+                                       is_customer=1,
+                                       is_bartender=0,
+                                       is_admin=0)
+                    user_object.set_password(gen_password())
+                    user_object.set_qrcode()
+                    db.session.add(user_object)
+            db.session.commit()
+            return redirect(url_for('main.dashboard'))
+
+    return render_template('auth/register_list.html.j2', title='Register list',
                            form=form)

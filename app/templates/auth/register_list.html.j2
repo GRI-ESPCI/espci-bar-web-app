@@ -1,0 +1,24 @@
+{% extends 'base.html.j2' %}
+
+{% block app_content %}
+<div class="container">
+    <form action="" method="post" role="form" class="centered-form" novalidate enctype="multipart/form-data">
+      {{ form.hidden_tag() }}
+      <h1 class="mb-3">Add user</h1>
+      {% if form.errors %}
+      <div class="alert alert-danger" role="alert">
+        There are errors in the fields below!
+      </div>
+      {% endif %}
+      <div class="form-group">
+        {{ form.file.label()}}
+        {{ form.file(class_='input-control') }}
+      </div>
+      <div class="form-group">
+        {{ form.filetype.label()}}
+        {{ form.filetype(class_='form-control') }}
+      </div>
+      {{ form.submit(class_='btn btn-primary') }}
+  </div>
+</div>
+{% endblock %}

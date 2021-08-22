@@ -4,6 +4,7 @@ from flask_wtf import FlaskForm
 import datetime
 from wtforms import StringField, PasswordField, BooleanField, SubmitField, \
     IntegerField, DateField, SelectField
+from flask_wtf.file import FileField, FileRequired
 from wtforms.validators import ValidationError, DataRequired, Email, optional
 from app.models import User
 
@@ -51,3 +52,13 @@ class RegistrationForm(FlaskForm):
         if grad_class.data is not None and grad_class.data < 0:
             raise ValidationError('Please enter a valid graduating class or '
                                   'nothing if non student.')
+
+
+class RegistrationFileForm(FlaskForm):
+    """Registration from a file"""
+    file = FileField('File with the list of new customers',
+                     validators=[FileRequired()])
+    filetype = SelectField(
+        'File types',
+        choices=[('txt', 'txt')])
+    submit = SubmitField('Register')
