@@ -35,8 +35,8 @@ def month_year_iter(start_month, start_year, end_month, end_year):
 @login_required
 def get_yearly_transactions():
     """Return transaction from last 12 months."""
-    if not (current_user.is_admin or current_user.is_bartender or
-            current_user.is_observer):
+    if not (current_user.is_admin or current_user.is_bartender
+            or current_user.is_observer):
         return redirect(url_for('main.user', username=current_user.username))
 
     # Get current day, month, year
@@ -135,8 +135,8 @@ def dashboard():
     - For customers, it redirects to the user profile.
     - For anonymous users, it redirects to the login page.
     """
-    if not (current_user.is_admin or current_user.is_bartender or
-            current_user.is_observer):
+    if not (current_user.is_admin or current_user.is_bartender
+            or current_user.is_observer):
         return redirect(url_for('main.user', username=current_user.username))
 
     # Get current day start
@@ -173,16 +173,41 @@ def dashboard():
     daily_revenue = sum([abs(t.balance_change) for t in daily_transactions])
 
     # Compute number of clients this month
-    clients_this_month = [len(set([t.client_id for t in
-        Transaction.query.filter(and_(extract('day', Transaction.date) == day,
-            and_(extract('month', Transaction.date) == current_month,
-                extract('year', Transaction.date) == current_year))).filter(Transaction.type.like('Pay%')).filter_by(is_reverted=False).all()])) for day in range(1, 32)]
+    query_tr = Transaction.query.filter(and_(extract(
+                                        'month',
+                                        Transaction.date
+                                        ) == current_month,
+                                        extract(
+                                            'year',
+                                            Transaction.date
+                                        ) == current_year)).filter(
+                                            Transaction.type.like('Pay%')
+                                        ).filter_by(is_reverted=False).all()
+    clients_this_month = [{} for i in range(1, 32)]
+    revenues_this_month = [0 for i in range(1, 32)]
+    for transaction in query_tr:
+        clients_this_month[transaction.date.day - 1][transaction.client_id] = 1
+        revenues_this_month[transaction.date.day - 1] += abs(transaction.balance_change)
+    for day in range(31):
+        clients_this_month[day] = len(clients_this_month[day])
 
-
-    clients_alcohol_this_month = [len(set([t.client_id for t in
-        Transaction.query.filter(and_(extract('day', Transaction.date) == day,
-            and_(extract('month', Transaction.date) == current_month, extract('year',
-                Transaction.date) == current_year))).filter(Transaction.type.like('Pay%')).filter(Transaction.item.has(is_alcohol=True)).filter_by(is_reverted=False).all()])) for day in range(1, 32)]
+    query = Transaction.query.filter(and_(extract(
+                                    'month',
+                                    Transaction.date
+                                    ) == current_month,
+                                    extract(
+                                        'year',
+                                        Transaction.date
+                                    ) == current_year)).filter(
+                                        Transaction.type.like('Pay%')
+                                    ).filter(Transaction.item.has(
+                                        is_alcohol=True
+                                    )).filter_by(is_reverted=False).all()
+    clients_alcohol_this_month = [{} for i in range(1, 32)]
+    for transaction in query:
+        clients_alcohol_this_month[transaction.date.day - 1][transaction.client_id] = 1
+    for day in range(31):
+        clients_alcohol_this_month[day] = len(clients_alcohol_this_month[day])
 
     # Generate days labels
     days_labels = ['%.2d' % current_month + '/' + '%.2d' % day for day in
@@ -192,6 +217,7 @@ def dashboard():
                            title='Dashboard',
                            clients_this_month=clients_this_month,
                            clients_alcohol_this_month=clients_alcohol_this_month,
+                           revenues_this_month=revenues_this_month,
                            days_labels=days_labels,
                            nb_daily_clients=nb_daily_clients,
                            alcohol_qty=alcohol_qty,

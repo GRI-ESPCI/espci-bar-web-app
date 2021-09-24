@@ -48,6 +48,12 @@
     <canvas id="transactions-chart" width="600" height="400" aria-label="transactions-chart" role="img"></canvas>
   </div>
 </div>
+
+<div class="card border-primary">
+    <div class="card-body">
+        <canvas id="moula-chart" width="600" height="400" aria-label="moula-chart" role="img"></canvas>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -97,7 +103,7 @@ var chartDataMonth = {
 var ctx = document.querySelector('#transactions-chart').getContext('2d');
 // Create the chart using the chart canvas
 var transactionsChart = new Chart(ctx, {
-  type: 'line',
+  type: 'bar',
   data: chartDataMonth,
   options: {
     responsive: true,
@@ -123,6 +129,53 @@ var transactionsChart = new Chart(ctx, {
         scaleLabel: {
           display: true,
           labelString: 'Clients'
+        }
+      }]
+    }
+  }
+});
+
+var chartMoulaMonth = {
+  labels: [{% for item in days_labels %}"{{ item }}", {% endfor %}],
+  datasets: [{
+      label: "Moula",
+      fill: false,
+      backgroundColor: "#dc3545",
+      borderColor: "#dc3545",
+      data: [{% for item in revenues_this_month %}{{ '%0.2f'| format(item|float) }}, {% endfor %}],
+  }]
+};
+
+// Get chart canvas
+var ctx = document.querySelector('#moula-chart').getContext('2d');
+// Create the chart using the chart canvas
+var moulaChart = new Chart(ctx, {
+  type: 'bar',
+  data: chartMoulaMonth,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    tooltips: {
+      mode: 'index',
+      intersect: false
+    },
+    hover: {
+      mode: 'nearest',
+      intersect: true
+    },
+    scales: {
+      xAxes: [{
+        display: true,
+        scaleLabel: {
+          display: true,
+          labelString: 'Day'
+        }
+      }],
+      yAxes: [{
+        display: true,
+        scaleLabel: {
+          display: true,
+          labelString: 'Moula (in €)'
         }
       }]
     }
