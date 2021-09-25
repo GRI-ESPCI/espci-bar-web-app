@@ -41,11 +41,18 @@
       </div>
     </div>
   </div>
-</div>
-
-<div class="card border-primary">
-  <div class="card-body">
-    <canvas id="transactions-chart" width="600" height="400" aria-label="transactions-chart" role="img"></canvas>
+  <div class="col-xl-4 col-lg-4 col-md-4 col-sm-12 col-12 mb-3">
+    <div class="card shadow bg-primary text-white">
+      <div class="card-body">
+        <div class="media">
+          <i class="material-icons align-self-center md-48 mr-3">account_balance</i>
+          <div class="media-body">
+            <h5 class="card-title mt-0" id="daily-revenue">{{ '%0.2f' % moula_client_total | float }}€</h5>
+            <h6 class="card-subtitle">Total client moula</h6>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -54,6 +61,13 @@
         <canvas id="moula-chart" width="600" height="400" aria-label="moula-chart" role="img"></canvas>
     </div>
 </div>
+
+<div class="card border-primary">
+  <div class="card-body">
+    <canvas id="transactions-chart" width="600" height="400" aria-label="transactions-chart" role="img"></canvas>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}

@@ -6,6 +6,7 @@ from flask import render_template, flash, redirect, url_for, request, g, \
     jsonify, current_app
 from flask_login import current_user, login_required, fresh_login_required
 from sqlalchemy import extract
+from sqlalchemy.sql import func
 from sqlalchemy.sql.expression import and_
 from app import db
 from app.main.forms import EditProfileForm, EditItemForm, AddItemForm, \
@@ -209,6 +210,9 @@ def dashboard():
     for day in range(31):
         clients_alcohol_this_month[day] = len(clients_alcohol_this_month[day])
 
+    # Client total moula
+    moula_client_total = db.session.query(func.sum(User.balance)).first()
+
     # Generate days labels
     days_labels = ['%.2d' % current_month + '/' + '%.2d' % day for day in
                    range(1, monthrange(current_year, current_month)[1] + 1)]
@@ -221,7 +225,8 @@ def dashboard():
                            days_labels=days_labels,
                            nb_daily_clients=nb_daily_clients,
                            alcohol_qty=alcohol_qty,
-                           daily_revenue=daily_revenue)
+                           daily_revenue=daily_revenue,
+                           moula_client_total=moula_client_total[0])
 
 
 @bp.route('/search', methods=['GET'])
