@@ -217,6 +217,29 @@ def dashboard():
     days_labels = ['%.2d' % current_month + '/' + '%.2d' % day for day in
                    range(1, monthrange(current_year, current_month)[1] + 1)]
 
+    # Best customer
+    customers_consumption_this_month = db.session.query(
+                                            Transaction.client_id,
+                                            func.sum(Transaction.balance_change)
+                                        ).filter(and_(extract(
+                                        'month',
+                                        Transaction.date
+                                        ) == current_month,
+                                        extract(
+                                            'year',
+                                            Transaction.date
+                                        ) == current_year)).filter(
+                                            Transaction.type.like('Pay%')
+                                        ).filter_by(is_reverted=False).group_by(
+                                            Transaction.client_id
+                                        ).all()
+    best_customer = customers_consumption_this_month[0]
+    for customer in customers_consumption_this_month:
+        if customer[1] < best_customer[1]:
+            best_customer = customer
+    best_customer = User.query.get(best_customer[0])
+    best_customer_name = f"{best_customer.first_name} {best_customer.last_name}"
+
     return render_template('dashboard.html.j2',
                            title='Dashboard',
                            clients_this_month=clients_this_month,
@@ -226,7 +249,8 @@ def dashboard():
                            nb_daily_clients=nb_daily_clients,
                            alcohol_qty=alcohol_qty,
                            daily_revenue=daily_revenue,
-                           moula_client_total=moula_client_total[0])
+                           moula_client_total=moula_client_total[0],
+                           best_customer_name=best_customer_name)
 
 
 @bp.route('/search', methods=['GET'])
