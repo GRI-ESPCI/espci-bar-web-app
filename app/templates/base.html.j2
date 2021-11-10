@@ -51,6 +51,7 @@
             <a class="nav-link dropdown-toggle" href="#" id="dropdownTools" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Tools</a>
             <div class="dropdown-menu" aria-labelledby="dropdownTools">
               <a class="dropdown-item" href="{{ url_for('auth.register') }}">Add user</a>
+              <a class="dropdown-item" href="{{url_for('main.data')}}">Data</a>
               {% if current_user.is_admin %}
               <a class="dropdown-item" href="{{ url_for('main.global_settings')}}">Settings</a>
               {% endif %}
