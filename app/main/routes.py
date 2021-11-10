@@ -267,6 +267,11 @@ def dashboard():
 @bp.route('/data')
 @login_required
 def data():
+    """
+    Display data that can be downloaded for external processing.
+    Available data :
+        - weekly transaction
+    """
     if not (current_user.is_admin or current_user.is_bartender):
         flash("You don't have the rights to access this page.", 'danger')
         return redirect(url_for('main.dashboard'))
@@ -290,6 +295,11 @@ def data():
 @bp.route('/data/<type>/<data>')
 @login_required
 def data_process(type, data):
+    """
+    Generate file to be downloaded from the data page.
+
+    TODO : cache
+    """
     if not (current_user.is_admin or current_user.is_bartender):
         flash("You don't have the rights to access this page.", 'danger')
         return redirect(url_for('main.dashboard'))
@@ -311,26 +321,35 @@ def data_process(type, data):
                                              ).filter(
                                 Transaction.type.like('Pay%')
                              ).filter_by(is_reverted=False).all()
+            filename = "current_week.xlsx"
         else:
             data = data.split('-')
             try:
                 week = int(data[0])
                 year = int(data[1])
             except ValueError:
+                flash("Invalid week format.", "danger")
                 return redirect(url_for('main.data'))
             if week < 1 or week > 52:
+                flash("Invalid week number.", "danger")
                 return redirect(url_for('main.data'))
 
-            monday = datetime.datetime.strptime(
-                f"{year} {week} 1", '%Y %W %w')
-            sunday = datetime.datetime.strptime(
-                f"{year} {week + 1} 0", '%Y %W %w')
+            try:
+                monday = datetime.datetime.strptime(
+                    f"{year} {week} 1", '%Y %W %w')
+                sunday = datetime.datetime.strptime(
+                    f"{year} {week + 1} 0", '%Y %W %w')
+            except ValueError:
+                flash("Error when parsing week.", "danger")
+                return redirect(url_for("main.data"))
 
             query = Transaction.query.filter(Transaction.date.between(monday,
                                                                       sunday)
                                              ).filter(
                                 Transaction.type.like('Pay%')
                              ).filter_by(is_reverted=False).all()
+
+            filename = f"week{week}-{year}.xlsx"
 
         header = ["id", "date", "barman", "client", "item", "type",
                   "balance"]
@@ -345,6 +364,7 @@ def data_process(type, data):
             worksheet.write(row, 2, transaction.barman)
             worksheet.write(row, 3, f"{transaction.client.first_name} "
                                     f"{transaction.client.last_name}")
+            # Item may not be available
             try:
                 worksheet.write(row, 4, transaction.item.name)
             except AttributeError:
@@ -363,7 +383,7 @@ def data_process(type, data):
             'Expires': '0',
             'Cache-Control': 'must-revalidate, post-check=0, pre-check=0',
             'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition': 'attachment; filename="current_week.xlsx";',
+            'Content-Disposition': f"attachment; filename=\"{filename}\";",
             'Content-Transfer-Encoding': 'binary',
             'Content-Length': len(response.data)
         })
