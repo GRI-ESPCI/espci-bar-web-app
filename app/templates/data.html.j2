@@ -1,0 +1,41 @@
+{% extends 'base.html.j2' %}
+
+{% block app_content %}
+
+<h2>Weekly transactions</h2>
+<hr>
+
+<ul class="list-group">
+    <li class="list-group-item"><a href="{{ url_for('main.data_process', type ='weekly_transaction', data='current')}}">current_week.xlsx</a></li>
+    {% for week in weeks %}
+        <li class="list-group-item"><a href="{{ url_for('main.data_process', type ='weekly_transaction', data=week)}}">Week {{week}}.xlsx</a></li>
+    {% endfor %}
+</ul>
+
+<div class="input-group mb-3">
+    <span class="input-group-text">Week</span>
+    <select id="data-week" class="form-control">
+        {% for i in range(1,53) %}
+            <option>{{i}}</option>
+        {% endfor %}
+    </select>
+    <span class="input-group-text">Year</span>
+    <select id="data-year" class="form-control">
+        {% for i in range(year - 2017) %}
+            <option>{{year - i}}</option>
+        {% endfor %}
+    </select>
+    <button id="data-download" type="button" class="btn btn-outline-secondary">Download</button>
+</div>
+<script type="text/javascript">
+    var download = document.getElementById('data-download');
+    var week = document.getElementById('data-week');
+    var year = document.getElementById('data-year');
+
+    download.addEventListener("click", function(){
+        w = week.options[week.selectedIndex].label;
+        y = year.options[year.selectedIndex].label;
+        window.location.href = "data/weekly_transaction/" + w + "-" + y;
+    });
+</script>
+{% endblock %}

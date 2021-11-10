@@ -3,7 +3,7 @@
 alembic==1.0.5
 asn1crypto==0.24.0
 blinker==1.4
-cffi==1.13.6
+cffi==1.13.2
 Click==7.0
 cryptography==3.3.2
 Flask==1.0.2
@@ -32,3 +32,4 @@ Unidecode==1.0.23
 werkzeug>=0.15.3
 Whoosh==2.7.4
 WTForms==2.2.1
+XlsxWriter==3.0.2

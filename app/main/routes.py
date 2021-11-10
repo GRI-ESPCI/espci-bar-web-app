@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
 """View functions for the main routes."""
 import datetime
+import time
+from io import BytesIO
+import mimetypes
 from calendar import monthrange
 from flask import render_template, flash, redirect, url_for, request, g, \
-    jsonify, current_app
+    jsonify, current_app, send_file, Response
 from flask_login import current_user, login_required, fresh_login_required
 from sqlalchemy import extract
 from sqlalchemy.sql import func
 from sqlalchemy.sql.expression import and_
+import xlsxwriter
+from werkzeug.datastructures import Headers
 from app import db
 from app.main.forms import EditProfileForm, EditItemForm, AddItemForm, \
     SearchForm, GlobalSettingsForm
@@ -188,7 +193,8 @@ def dashboard():
     revenues_this_month = [0 for i in range(1, 32)]
     for transaction in query_tr:
         clients_this_month[transaction.date.day - 1][transaction.client_id] = 1
-        revenues_this_month[transaction.date.day - 1] += abs(transaction.balance_change)
+        revenues_this_month[transaction.date.day
+                            - 1] += abs(transaction.balance_change)
     for day in range(31):
         clients_this_month[day] = len(clients_this_month[day])
 
@@ -206,7 +212,8 @@ def dashboard():
                                     )).filter_by(is_reverted=False).all()
     clients_alcohol_this_month = [{} for i in range(1, 32)]
     for transaction in query:
-        clients_alcohol_this_month[transaction.date.day - 1][transaction.client_id] = 1
+        clients_alcohol_this_month[transaction.date.day
+                                   - 1][transaction.client_id] = 1
     for day in range(31):
         clients_alcohol_this_month[day] = len(clients_alcohol_this_month[day])
 
@@ -220,12 +227,13 @@ def dashboard():
     # Best customer
     customers_consumption_this_month = db.session.query(
                                             Transaction.client_id,
-                                            func.sum(Transaction.balance_change)
+                                            func.sum(
+                                                Transaction.balance_change)
                                         ).filter(and_(extract(
-                                        'month',
-                                        Transaction.date
+                                            'month',
+                                            Transaction.date
                                         ) == current_month,
-                                        extract(
+                                            extract(
                                             'year',
                                             Transaction.date
                                         ) == current_year)).filter(
@@ -233,12 +241,15 @@ def dashboard():
                                         ).filter_by(is_reverted=False).group_by(
                                             Transaction.client_id
                                         ).all()
-    best_customer = customers_consumption_this_month[0]
-    for customer in customers_consumption_this_month:
-        if customer[1] < best_customer[1]:
-            best_customer = customer
-    best_customer = User.query.get(best_customer[0])
-    best_customer_name = f"{best_customer.first_name} {best_customer.last_name}"
+
+    best_customer_name = "Silvain Gillat"
+    if len(customers_consumption_this_month) > 0:
+        best_customer = customers_consumption_this_month[0]
+        for customer in customers_consumption_this_month:
+            if customer[1] < best_customer[1]:
+                best_customer = customer
+        best_customer = User.query.get(best_customer[0])
+        best_customer_name = f"{best_customer.first_name} {best_customer.last_name}"
 
     return render_template('dashboard.html.j2',
                            title='Dashboard',
@@ -253,8 +264,119 @@ def dashboard():
                            best_customer_name=best_customer_name)
 
 
-@bp.route('/search', methods=['GET'])
+@bp.route('/data')
 @login_required
+def data():
+    if not (current_user.is_admin or current_user.is_bartender):
+        flash("You don't have the rights to access this page.", 'danger')
+        return redirect(url_for('main.dashboard'))
+
+    today = datetime.datetime.today()
+    weeknumber = today.isocalendar().week
+
+    weeks = []
+    for i in range(4):
+        if weeknumber - i > 0:
+            weeks.append(f"{weeknumber - i}-{today.year}")
+        else:
+            weeks.append(f"{weeknumber - (i+1) % 53}-{today.year - 1}")
+
+    return render_template('data.html.j2',
+                           title="Compta",
+                           weeks=weeks,
+                           year=today.year)
+
+
+@bp.route('/data/<type>/<data>')
+@login_required
+def data_process(type, data):
+    if not (current_user.is_admin or current_user.is_bartender):
+        flash("You don't have the rights to access this page.", 'danger')
+        return redirect(url_for('main.dashboard'))
+
+    if type == "weekly_transaction":
+        response = Response()
+        response.status_code = 200
+
+        output = BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+        if data == "current":
+
+            today = datetime.datetime.today()
+            monday = today - datetime.timedelta(days=today.weekday())
+
+            query = Transaction.query.filter(Transaction.date.between(monday,
+                                                                      today)
+                                             ).filter(
+                                Transaction.type.like('Pay%')
+                             ).filter_by(is_reverted=False).all()
+        else:
+            data = data.split('-')
+            try:
+                week = int(data[0])
+                year = int(data[1])
+            except ValueError:
+                return redirect(url_for('main.data'))
+            if week < 1 or week > 52:
+                return redirect(url_for('main.data'))
+
+            monday = datetime.datetime.strptime(
+                f"{year} {week} 1", '%Y %W %w')
+            sunday = datetime.datetime.strptime(
+                f"{year} {week + 1} 0", '%Y %W %w')
+
+            query = Transaction.query.filter(Transaction.date.between(monday,
+                                                                      sunday)
+                                             ).filter(
+                                Transaction.type.like('Pay%')
+                             ).filter_by(is_reverted=False).all()
+
+        header = ["id", "date", "barman", "client", "item", "type",
+                  "balance"]
+
+        for i, h in enumerate(header):
+            worksheet.write(0, i, h)
+
+        row = 1
+        for transaction in query:
+            worksheet.write(row, 0, transaction.id)
+            worksheet.write(row, 1, str(transaction.date))
+            worksheet.write(row, 2, transaction.barman)
+            worksheet.write(row, 3, f"{transaction.client.first_name} "
+                                    f"{transaction.client.last_name}")
+            try:
+                worksheet.write(row, 4, transaction.item.name)
+            except AttributeError:
+                worksheet.write(row, 4, "Error")
+            worksheet.write(row, 5, transaction.type)
+            worksheet.write(row, 6, f"{transaction.balance_change}€")
+            row += 1
+
+        workbook.close()
+        output.seek(0)
+
+        response.data = output.read()
+
+        response_headers = Headers({
+            'Pragma': "public",  # required,
+            'Expires': '0',
+            'Cache-Control': 'must-revalidate, post-check=0, pre-check=0',
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="current_week.xlsx";',
+            'Content-Transfer-Encoding': 'binary',
+            'Content-Length': len(response.data)
+        })
+
+        response.headers = response_headers
+
+        return response
+
+    return redirect(url_for("main.data"))
+
+
+@ bp.route('/search', methods=['GET'])
+@ login_required
 def search():
     """Render search page."""
     if not (current_user.is_admin or current_user.is_bartender):
@@ -310,8 +432,8 @@ def search():
                            quick_access_item=quick_access_item)
 
 
-@bp.route('/get_user_products', methods=['GET'])
-@login_required
+@ bp.route('/get_user_products', methods=['GET'])
+@ login_required
 def get_user_products():
     """Return the list of products that a user can buy."""
     if not (current_user.is_admin or current_user.is_bartender):
@@ -336,16 +458,16 @@ def get_user_products():
     return jsonify({'html': pay_template})
 
 
-@bp.route('/user/<username>', methods=['GET'])
-@login_required
+@ bp.route('/user/<username>', methods=['GET'])
+@ login_required
 def user(username):
     """Render the user profile page.
 
     Keyword arguments:
     username -- the user's username
     """
-    if not (current_user.username == username or current_user.is_admin or
-            current_user.is_bartender):
+    if not (current_user.username == username or current_user.is_admin
+            or current_user.is_bartender):
         flash("You don't have the rights to access this page.", 'danger')
         return redirect(url_for('main.dashboard'))
 
@@ -384,8 +506,8 @@ def user(username):
                            transactions=transactions)
 
 
-@bp.route('/edit_profile/<username>', methods=['GET', 'POST'])
-@fresh_login_required
+@ bp.route('/edit_profile/<username>', methods=['GET', 'POST'])
+@ fresh_login_required
 def edit_profile(username):
     """Render the user editing page.
 
@@ -434,8 +556,8 @@ def edit_profile(username):
                            form=form)
 
 
-@bp.route('/deposit', methods=['GET'])
-@login_required
+@ bp.route('/deposit', methods=['GET'])
+@ login_required
 def deposit():
     """Set a user deposit state."""
     if not (current_user.is_admin or current_user.is_bartender):
@@ -455,8 +577,8 @@ def deposit():
     return redirect(request.referrer)
 
 
-@bp.route('/delete_user', methods=['GET'])
-@fresh_login_required
+@ bp.route('/delete_user', methods=['GET'])
+@ fresh_login_required
 def delete_user():
     """Delete a user."""
     if not current_user.is_admin:
@@ -472,8 +594,8 @@ def delete_user():
     return redirect(url_for('main.dashboard'))
 
 
-@bp.route('/transactions')
-@login_required
+@ bp.route('/transactions')
+@ login_required
 def transactions():
     """Render the transactions page."""
     if not (current_user.is_admin or current_user.is_bartender):
@@ -496,8 +618,8 @@ def transactions():
                            transactions=transactions, sort=sort)
 
 
-@bp.route('/revert_transaction')
-@login_required
+@ bp.route('/revert_transaction')
+@ login_required
 def revert_transaction():
     """Revert a transaction."""
     if not (current_user.is_admin or current_user.is_bartender):
@@ -516,9 +638,9 @@ def revert_transaction():
     if transaction.client:
         # Check if user balance stays positive before reverting
         if transaction.client.balance - transaction.balance_change < 0:
-            flash(transaction.client.first_name + ' ' +
-                  transaction.client.last_name + '\'s balance would be ' +
-                  'negative if this transaction were reverted.', 'warning')
+            flash(transaction.client.first_name + ' '
+                  + transaction.client.last_name + '\'s balance would be '
+                  + 'negative if this transaction were reverted.', 'warning')
             return redirect(request.referrer)
         transaction.client.balance -= transaction.balance_change
         if transaction.item and transaction.item.is_alcohol:
@@ -708,9 +830,9 @@ def top_up():
     db.session.add(transaction)
     db.session.commit()
 
-    flash('You added ' + str(amount) + '€ to ' + user.first_name + ' ' +
-          user.last_name + "'s account. " +
-          render_template('_revert_button.html.j2', transaction=transaction),
+    flash('You added ' + str(amount) + '€ to ' + user.first_name + ' '
+          + user.last_name + "'s account. "
+          + render_template('_revert_button.html.j2', transaction=transaction),
           'primary')
     return redirect(request.referrer)
 
@@ -756,10 +878,10 @@ def pay():
     db.session.add(transaction)
     db.session.commit()
 
-    flash(user.first_name + ' ' + user.last_name + ' successfully bought ' +
-          item.name +
-          ' (Balance: {:.2f}'.format(user.balance)+'€). ' +
-          render_template('_revert_button.html.j2', transaction=transaction),
+    flash(user.first_name + ' ' + user.last_name + ' successfully bought '
+          + item.name
+          + ' (Balance: {:.2f}'.format(user.balance)+'€). '
+          + render_template('_revert_button.html.j2', transaction=transaction),
           'primary')
     return redirect(request.referrer)
 
@@ -800,8 +922,8 @@ def qrcode(username):
     Keyword arguments:
     username -- the user's username
     """
-    if not (current_user.username == username or current_user.is_admin or
-            current_user.is_bartender):
+    if not (current_user.username == username or current_user.is_admin
+            or current_user.is_bartender):
         flash("You don't have the rights to access this page.", 'danger')
         return redirect(url_for('main.dashboard'))
 
