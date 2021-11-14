@@ -338,7 +338,7 @@ def data_process(type, data):
                 monday = datetime.datetime.strptime(
                     f"{year} {week} 1", '%Y %W %w')
                 sunday = datetime.datetime.strptime(
-                    f"{year} {week + 1} 0", '%Y %W %w')
+                    f"{year} {week} 0", '%Y %W %w')
             except ValueError:
                 flash("Error when parsing week.", "danger")
                 return redirect(url_for("main.data"))
