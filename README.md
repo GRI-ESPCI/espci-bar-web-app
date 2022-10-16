@@ -9,6 +9,15 @@
 
 This is the ESPCI student bar web app, still in development. Written using Python Flask.
 
+## Fusion with PC est magique
+
+:warning: **October 2022: this project has been merged within 
+[PC est magique](https://github.com/GRI-ESPCI/pc-est-magique),
+as a module of it.**
+
+This projet's development is therefore stopped, and the repository archived.
+
+
 ### Quickstart
 
 1. Install requirements:
